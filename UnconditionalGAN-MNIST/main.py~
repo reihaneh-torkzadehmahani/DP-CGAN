@@ -1,0 +1,99 @@
+"""
+Reference for Vanilla GAN code:
+https://github.com/wiseodd/generative-models/blob/master/GAN/
+
+Reference for Moment accountant code:
+https://github.com/tensorflow/models/tree/master/research/differential_privacy
+"""
+
+# base directory for the project
+baseDir = "/content/gdrive/Team Drives/PrivacyGenomics/our_dp_gan"
+
+
+#Import the requiered python packages
+import tensorflow as tf
+from tensorflow.examples.tutorials.mnist import input_data
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import os
+import sys
+
+#Import required Differential Privacy packages
+sys.path.append(baseDir);
+from differential_privacy.dp_sgd.dp_optimizer import dp_optimizer
+from differential_privacy.dp_sgd.dp_optimizer import sanitizer
+from differential_privacy.dp_sgd.dp_optimizer import utils
+from differential_privacy.privacy_accountant.tf import accountant
+
+def xavier_init(size):
+    """ Xavier Function to keep the scale of the gradients roughly the same
+        in all the layers. 
+    """
+    in_dim = size[0]
+    xavier_stddev = 1. / tf.sqrt(in_dim / 2.)
+    return tf.random_normal(shape=size, stddev=xavier_stddev)
+  
+#Initializations for a two-layer discriminator network
+X = tf.placeholder(tf.float32, shape=[None, 784])
+D_W1 = tf.Variable(xavier_init([784, 128]))
+D_b1 = tf.Variable(tf.zeros(shape=[128]))
+D_W2 = tf.Variable(xavier_init([128, 1]))
+D_b2 = tf.Variable(tf.zeros(shape=[1]))
+theta_D = [D_W1, D_W2, D_b1, D_b2]
+
+#Initializations for a two-layer genrator network
+Z = tf.placeholder(tf.float32, shape=[None, 100])
+G_W1 = tf.Variable(xavier_init([100, 128]))
+G_b1 = tf.Variable(tf.zeros(shape=[128]))
+G_W2 = tf.Variable(xavier_init([128, 784]))
+G_b2 = tf.Variable(tf.zeros(shape=[784]))
+theta_G = [G_W1, G_W2, G_b1, G_b2]
+
+def sample_Z(m, n):
+    """ Function to generate uniform prior for G(z) 
+    """
+    return np.random.uniform(-1., 1., size=[m, n])
+
+def generator(z):
+    """ Function to build the generator network
+    """
+    G_h1 = tf.nn.relu(tf.matmul(z, G_W1) + G_b1)
+    G_log_prob = tf.matmul(G_h1, G_W2) + G_b2
+    G_prob = tf.nn.sigmoid(G_log_prob)
+    return G_prob
+
+def discriminator(x):
+    """ Function to build the discriminator network
+    """
+    D_h1 = tf.nn.relu(tf.matmul(x, D_W1) + D_b1)
+    D_logit = tf.matmul(D_h1, D_W2) + D_b2
+    D_prob = tf.nn.sigmoid(D_logit)
+
+    return D_prob, D_logit
+
+def plot(samples):
+    """ Function to plot the generated images
+    """
+    fig = plt.figure(figsize=(4, 4))
+    gs = gridspec.GridSpec(4, 4)
+    gs.update(wspace=0.05, hspace=0.05)
+    for i, sample in enumerate(samples):
+        ax = plt.subplot(gs[i])
+        plt.axis('off')
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        ax.set_aspect('equal')
+        plt.imshow(sample.reshape(28, 28), cmap='Greys_r')
+        #plt.show()
+    return fig
+
+def del_all_flags(FLAGS):
+    """ Function to delete all flags before declare
+    """
+    flags_dict = FLAGS._flags()
+    keys_list = [keys for keys in flags_dict]
+    for keys in keys_list:
+        FLAGS.__delattr__(keys)
+
+

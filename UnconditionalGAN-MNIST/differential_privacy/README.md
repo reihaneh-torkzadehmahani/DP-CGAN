@@ -16,16 +16,3 @@ networks with non-convex objectives, under a modest privacy budget, and at a
 manageable cost in software complexity, training efficiency, and model quality.
 
 paper: https://arxiv.org/abs/1607.00133
-
-
-### Introduction for [multiple_teachers/README.md](multiple_teachers/README.md)
-
-This repository contains code to create a setup for learning privacy-preserving 
-student models by transferring knowledge from an ensemble of teachers trained 
-on disjoint subsets of the data for which privacy guarantees are to be provided.
-
-Knowledge acquired by teachers is transferred to the student in a differentially
-private manner by noisily aggregating the teacher decisions before feeding them
-to the student during training.
-
-paper: https://arxiv.org/abs/1610.05755

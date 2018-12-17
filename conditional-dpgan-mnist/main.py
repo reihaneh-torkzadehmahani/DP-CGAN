@@ -34,20 +34,28 @@ def xavier_init(size):
     xavier_stddev = 1. / tf.sqrt(in_dim / 2.)
     return tf.random_normal(shape=size, stddev=xavier_stddev)
   
+
 #Initializations for a two-layer discriminator network
-X = tf.placeholder(tf.float32, shape=[None, 784])
-D_W1 = tf.Variable(xavier_init([784, 128]))
-D_b1 = tf.Variable(tf.zeros(shape=[128]))
-D_W2 = tf.Variable(xavier_init([128, 1]))
+mnist = input_data.read_data_sets(baseDir + "/conditional-dpgan-mnist/mnist_dataset", one_hot=True)
+h_dim = 128
+X_dim = mnist.train.images.shape[1]
+y_dim = mnist.train.labels.shape[1]
+Z_dim = 100
+X = tf.placeholder(tf.float32, shape=[None, X_dim])
+y = tf.placeholder(tf.float32, shape=[None, y_dim])
+
+D_W1 = tf.Variable(xavier_init([X_dim + y_dim, h_dim]))
+D_b1 = tf.Variable(tf.zeros(shape=[h_dim]))
+D_W2 = tf.Variable(xavier_init([h_dim, 1]))
 D_b2 = tf.Variable(tf.zeros(shape=[1]))
 theta_D = [D_W1, D_W2, D_b1, D_b2]
 
 #Initializations for a two-layer genrator network
-Z = tf.placeholder(tf.float32, shape=[None, 100])
-G_W1 = tf.Variable(xavier_init([100, 128]))
-G_b1 = tf.Variable(tf.zeros(shape=[128]))
-G_W2 = tf.Variable(xavier_init([128, 784]))
-G_b2 = tf.Variable(tf.zeros(shape=[784]))
+Z = tf.placeholder(tf.float32, shape=[None, Z_dim])
+G_W1 = tf.Variable(xavier_init([Z_dim + y_dim, h_dim]))
+G_b1 = tf.Variable(tf.zeros(shape=[h_dim]))
+G_W2 = tf.Variable(xavier_init([h_dim, X_dim]))
+G_b2 = tf.Variable(tf.zeros(shape=[X_dim]))
 theta_G = [G_W1, G_W2, G_b1, G_b2]
 
 def sample_Z(m, n):
@@ -55,18 +63,20 @@ def sample_Z(m, n):
     """
     return np.random.uniform(-1., 1., size=[m, n])
 
-def generator(z):
+def generator(z, y):
     """ Function to build the generator network
     """
-    G_h1 = tf.nn.relu(tf.matmul(z, G_W1) + G_b1)
+    inputs = tf.concat(axis=1, values=[z, y])
+    G_h1 = tf.nn.relu(tf.matmul(inputs, G_W1) + G_b1)
     G_log_prob = tf.matmul(G_h1, G_W2) + G_b2
     G_prob = tf.nn.sigmoid(G_log_prob)
     return G_prob
 
-def discriminator(x):
+def discriminator(x, y):
     """ Function to build the discriminator network
     """
-    D_h1 = tf.nn.relu(tf.matmul(x, D_W1) + D_b1)
+    inputs = tf.concat(axis=1, values=[x, y])
+    D_h1 = tf.nn.relu(tf.matmul(inputs, D_W1) + D_b1)
     D_logit = tf.matmul(D_h1, D_W2) + D_b2
     D_prob = tf.nn.sigmoid(D_logit)
 
@@ -135,11 +145,11 @@ gaussian_sanitizer = sanitizer.AmortizedGaussianSanitizer(priv_accountant,
                     [clipping_value / batch_size, True])
 
 #Instantiate the Generator Network
-G_sample = generator(Z)
+G_sample = generator(Z, y)
 
 #Instantiate the Discriminator Network
-D_real, D_logit_real = discriminator(X)
-D_fake, D_logit_fake = discriminator(G_sample)
+D_real, D_logit_real = discriminator(X, y)
+D_fake, D_logit_fake = discriminator(G_sample, y)
 
 # Discriminator loss for real data
 D_loss_real = tf.reduce_mean(
@@ -241,11 +251,11 @@ gaussian_sanitizer = sanitizer.AmortizedGaussianSanitizer(priv_accountant,
                     [clipping_value / batch_size, True])
 
 #Instantiate the Generator Network
-G_sample = generator(Z)
+G_sample = generator(Z, y)
 
 #Instantiate the Discriminator Network
-D_real, D_logit_real = discriminator(X)
-D_fake, D_logit_fake = discriminator(G_sample)
+D_real, D_logit_real = discriminator(X, y)
+D_fake, D_logit_fake = discriminator(G_sample, y)
 
 # Discriminator loss for real data
 D_loss_real = tf.reduce_mean(
@@ -308,10 +318,10 @@ if not os.path.exists(resultPath):
    os.makedirs(resultPath)
 
 
-Z_dim = 100
+
 target_eps = [float(s) for s in FLAGS.target_eps.split(",")]
 max_target_eps = max(target_eps)
-mnist = input_data.read_data_sets(baseDir + "/conditional-dpgan-mnist/mnist_dataset", one_hot=True)
+#mnist = input_data.read_data_sets(baseDir + "/conditional-dpgan-mnist/mnist_dataset", one_hot=True)
 
 #Main Session
 with tf.train.SingularMonitoredSession() as sess:
@@ -330,11 +340,16 @@ with tf.train.SingularMonitoredSession() as sess:
                                  FLAGS.lr_saturate_epochs, epoch)
 
         for _ in range(FLAGS.batches_per_lot):
-            
+
+
             # Save the generated images every 100 steps 
             if step % 100 == 0:
-                
-                samples = sess.run(G_sample, feed_dict={Z: sample_Z(16, Z_dim)})
+
+                n_sample = 16
+                Z_sample = sample_Z(n_sample, Z_dim)
+                y_sample = np.zeros(shape=[n_sample, y_dim])
+                y_sample[:, 7] = 1
+                samples = sess.run(G_sample, feed_dict={Z: Z_sample, y: y_sample})
                 print(samples.shape)
                 fig = plot(samples)
                 plt.savefig(
@@ -342,19 +357,19 @@ with tf.train.SingularMonitoredSession() as sess:
                     bbox_inches='tight')
                 plt.close(fig)
                 print('Step: {}'.format(step))
-            
-            
-            X_mb, _ = mnist.train.next_batch(batch_size, shuffle=True)
-            
+
+            X_mb, y_mb = mnist.train.next_batch(batch_size, shuffle=True)
+            Z_sample = sample_Z(batch_size, Z_dim)
+
             #Update the discriminator network
             _,D_loss_curr,_ = sess.run([D_solver,D_loss_real, D_loss_fake], \
                                       feed_dict={X: X_mb,\
-                                                 Z: sample_Z(batch_size, Z_dim),\
+                                                 Z: Z_sample,\
+                                                 y: y_mb,\
                                                  lr: curr_lr})
-
             #Update the generator network
             _, G_loss_curr = sess.run([G_solver, G_loss],
-                                      feed_dict={Z: sample_Z(batch_size, Z_dim)})
+                                      feed_dict={Z: Z_sample, y:y_mb})
             
 
         # Flag to terminate based on target privacy budget

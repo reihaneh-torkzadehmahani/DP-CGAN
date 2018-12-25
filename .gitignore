@@ -1,0 +1,2 @@
+conditional-dpgan-mnist/results/*
+conditional-dpgan-mnist/mnist_dataset/*

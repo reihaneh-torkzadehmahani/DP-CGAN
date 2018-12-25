@@ -348,7 +348,9 @@ with tf.train.SingularMonitoredSession() as sess:
                 n_sample = 16
                 Z_sample = sample_Z(n_sample, Z_dim)
                 y_sample = np.zeros(shape=[n_sample, y_dim])
+
                 y_sample[:, 7] = 1
+                print(y_sample)
                 samples = sess.run(G_sample, feed_dict={Z: Z_sample, y: y_sample})
                 print(samples.shape)
                 fig = plot(samples)

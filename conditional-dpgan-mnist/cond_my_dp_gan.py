@@ -32,10 +32,10 @@ from differential_privacy.dp_sgd.dp_optimizer import sanitizer
 from differential_privacy.dp_sgd.dp_optimizer import utils
 from differential_privacy.privacy_accountant.tf import accountant
 
-sigmaList = [ 2.0]
+sigmaList = [ 2]
 batchSizeList = [600]
 clippingValueList = [2]
-epsilon = 9.6
+epsilon = 8
 delta = 1e-5
 
 def compute_fpr_tpr_roc(Y_test, Y_score):
@@ -129,8 +129,8 @@ def discriminator(x, y, theta_D):
 def plot(samples):
     """ Function to plot the generated images
     """
-    fig = plt.figure(figsize=(4, 4))
-    gs = gridspec.GridSpec(4, 4)
+    fig = plt.figure(figsize=(8, 8))
+    gs = gridspec.GridSpec(10, 1)
     gs.update(wspace=0.05, hspace=0.05)
     for i, sample in enumerate(samples):
         ax = plt.subplot(gs[i])
@@ -309,26 +309,21 @@ def runTensorFlow(sigma, clippingValue, batchSize, epsilon, delta):
 
                 # Save the generated images every 100 steps
                 if step % 100 == 0:
-                    n_sample = 16
+                    n_sample = 10
                     Z_sample = sample_Z(n_sample, Z_dim)
                     y_sample = np.zeros(shape=[n_sample, y_dim])
 
                     y_sample[0, 0] = 1
-                    y_sample[1, 0] = 1
-                    y_sample[2, 1] = 1
-                    y_sample[3, 1] = 1
-                    y_sample[4, 2] = 1
-                    y_sample[5, 2] = 1
-                    y_sample[6, 3] = 1
-                    y_sample[7, 3] = 1
-                    y_sample[8, 4] = 1
-                    y_sample[9, 4] = 1
-                    y_sample[10, 5] = 1
-                    y_sample[11, 5] = 1
-                    y_sample[12, 6] = 1
-                    y_sample[13, 6] = 1
-                    y_sample[14, 7] = 1
-                    y_sample[15, 7] = 1
+                    y_sample[1, 1] = 1
+                    y_sample[2, 2] = 1
+                    y_sample[3, 3] = 1
+                    y_sample[4, 4] = 1
+                    y_sample[5, 5] = 1
+                    y_sample[6, 6] = 1
+                    y_sample[7, 7] = 1
+                    y_sample[8, 8] = 1
+                    y_sample[9, 9] = 1
+
 
                     samples = sess.run(G_sample, feed_dict={Z: Z_sample, y: y_sample})
 
@@ -342,7 +337,7 @@ def runTensorFlow(sigma, clippingValue, batchSize, epsilon, delta):
                 Z_sample = sample_Z(batch_size, Z_dim)
 
                 # Update the discriminator network
-                _, D_loss_curr, _ = sess.run([D_solver, D_loss_real, D_loss_fake], \
+                _, D_loss_real_curr, D_loss_fake_curr= sess.run([D_solver, D_loss_real, D_loss_fake], \
                                              feed_dict={X: X_mb, \
                                                         Z: Z_sample, \
                                                         y: y_mb, \

@@ -1,5 +1,8 @@
+import math
+import pandas
 
 from mlxtend.data import loadlocal_mnist
+from mlxtend.preprocessing import one_hot
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.metrics import roc_curve, auc
 from sklearn import svm
@@ -21,31 +24,28 @@ import matplotlib.gridspec as gridspec
 import os
 import sys
 
+import pyreadr
 
 
 # Import required Differential Privacy packages
-sys.path.append('models/research')
-sys.path.append('models/research/slim')
+### To run locally
+##sys.path.append('models/research')
+##sys.path.append('models/research/slim')
+##baseDir = ""
+##sys.path.append(baseDir);
 
-baseDir = ""
-#sys.path.append(baseDir);
+### TO tun in GoogleColab
+baseDir = "/content/gdrive/Team Drives/PrivacyGenomics/"
+sys.path.append(baseDir);
 
 from differential_privacy.dp_sgd.dp_optimizer import dp_optimizer
 from differential_privacy.dp_sgd.dp_optimizer import sanitizer
 from differential_privacy.dp_sgd.dp_optimizer import utils
 from differential_privacy.privacy_accountant.tf import accountant
 
-import pyreadr
 
-result = pyreadr.read_r('/home/reihaneh/Downloads/creditcard.Rdata') # also works for Rds
 
-# done! let's see what we got
-# result is a dictionary where keys are the name of objects and the values python
-# objects
-print(result.keys()) # let's check what objects we got
-creditcardData = result["creditcard"] # extract the pandas data frame for object df1
 
-print(creditcardData)
 
 sigmaList = [2]
 batchSizeList = [600]
@@ -169,13 +169,42 @@ def del_all_flags(FLAGS):
 
 
 def runTensorFlow(sigma, clippingValue, batchSize, epsilon, delta):
+
+    credit_card_df = pandas.read_csv('/home/reihaneh/Downloads/creditcard.csv', header=0)  # also works for Rds
+
+    # done! let's see what we got
+    # result is a dictionary where keys are the name of objects and the values python
+    # objects
+    #print(credit_card_dataset.keys())  # let's check what objects we got
+
+    #creditcardData = credit_card_dataset.values  # extract the pandas data frame for object df1
+
+    #dataset_size = creditcardData.shape[0]
+
+    dataset = credit_card_df.values
+    dataset_size = dataset.shape[0]
+
+    np.take(dataset, np.random.permutation(dataset_size), axis=0, out=dataset)
+
+
+    dataset_X = dataset[:,1:29]
+
+    dataset_Y = ((dataset[:,30]))
+    dataset_Y = [int(x) for x in dataset_Y]
+    dataset_Y = one_hot(dataset_Y)
+
     h_dim = 128
-    Z_dim = 100
+    Z_dim = 2
 
     # Initializations for a two-layer discriminator network
-    mnist = input_data.read_data_sets(baseDir + "conditional-gan-dp-ours-mnist/mnist_dataset", one_hot=True)
-    X_dim = mnist.train.images.shape[1]
-    y_dim = mnist.train.labels.shape[1]
+    ##mnist = input_data.read_data_sets(baseDir + "conditional-gan-dp-ours-mnist/mnist_dataset", one_hot=True)
+
+    ##X_dim = mnist.train.images.shape[1]
+    X_dim = dataset_X.shape[1]
+
+    ##y_dim = mnist.train.labels.shape[1]
+    y_dim = 2
+
     X = tf.placeholder(tf.float32, shape=[None, X_dim])
     y = tf.placeholder(tf.float32, shape=[None, y_dim])
 
@@ -222,8 +251,10 @@ def runTensorFlow(sigma, clippingValue, batchSize, epsilon, delta):
     FLAGS = tf.flags.FLAGS
 
     # Set accountant type to GaussianMomentsAccountant
-    NUM_TRAINING_IMAGES = 60000
-    priv_accountant = accountant.GaussianMomentsAccountant(NUM_TRAINING_IMAGES)
+    train_size = int(math.floor(int(dataset_size) * 0.9))
+
+
+    priv_accountant = accountant.GaussianMomentsAccountant(train_size)
 
     # Sanitizer
     batch_size = FLAGS.batch_size
@@ -284,20 +315,6 @@ def runTensorFlow(sigma, clippingValue, batchSize, epsilon, delta):
         var_list=theta_D)
     # ------------------------------------------------------------------------------
 
-    # Set output directory
-    resultDir = baseDir + "conditional-gan-dp-ours-mnist/results"
-    if not os.path.exists(resultDir):
-        os.makedirs(resultDir)
-
-    resultPath = resultDir + "/bs_{}_s_{}_c_{}_d_{}_e_{}".format( \
-        batch_size, \
-        sigma, \
-        clipping_value, \
-        FLAGS.target_delta, FLAGS.target_eps)
-
-    if not os.path.exists(resultPath):
-        os.makedirs(resultPath)
-
     target_eps = [float(s) for s in FLAGS.target_eps.split(",")]
     max_target_eps = max(target_eps)
 
@@ -307,7 +324,7 @@ def runTensorFlow(sigma, clippingValue, batchSize, epsilon, delta):
         sess.run(init)
 
         lot_size = FLAGS.batches_per_lot * batch_size
-        lots_per_epoch = NUM_TRAINING_IMAGES / lot_size
+        lots_per_epoch = train_size / lot_size
         step = 0
 
         # Is true when the spent privacy budget exceeds the target budget
@@ -320,35 +337,20 @@ def runTensorFlow(sigma, clippingValue, batchSize, epsilon, delta):
             curr_lr = utils.VaryRate(FLAGS.lr, FLAGS.end_lr, \
                                      FLAGS.lr_saturate_epochs, epoch)
 
+
+
+            batch_index = 0
             for _ in range(FLAGS.batches_per_lot):
 
-                # Save the generated images every 100 steps
-                if step % 1 == 0:
-                    n_sample = 10
-                    Z_sample = sample_Z(n_sample, Z_dim)
-                    y_sample = np.zeros(shape=[n_sample, y_dim])
+                ##X_mb, y_mb = mnist.train.next_batch(batch_size, shuffle=True)
+                if (batch_index + batch_size - 1 > train_size):
+                    break
 
-                    y_sample[0, 0] = 1
-                    y_sample[1, 1] = 1
-                    y_sample[2, 2] = 1
-                    y_sample[3, 3] = 1
-                    y_sample[4, 4] = 1
-                    y_sample[5, 5] = 1
-                    y_sample[6, 6] = 1
-                    y_sample[7, 7] = 1
-                    y_sample[8, 8] = 1
-                    y_sample[9, 9] = 1
+                X_mb = dataset_X[batch_index:batch_size]
+                y_mb = dataset_Y[batch_index:batch_size]
+                #y_mb = label_binarize(y_mb, [0,1])
+                #y_mb = one_hot(y_mb , num_labels=2)
 
-
-                    samples = sess.run(G_sample, feed_dict={Z: Z_sample, y: y_sample})
-
-                    fig = plot(samples)
-                    plt.savefig(
-                        (resultPath + "/step_{}.png").format(str(step).zfill(3)), bbox_inches='tight')
-                    plt.close(fig)
-
-
-                X_mb, y_mb = mnist.train.next_batch(batch_size, shuffle=True)
                 Z_sample = sample_Z(batch_size, Z_dim)
 
                 # Update the discriminator network
@@ -360,6 +362,7 @@ def runTensorFlow(sigma, clippingValue, batchSize, epsilon, delta):
                 # Update the generator network
                 _, G_loss_curr = sess.run([G_solver, G_loss],
                                           feed_dict={Z: Z_sample, y: y_mb})
+                batch_index += batch_size
 
             # Flag to terminate based on target privacy budget
             terminate_spent_eps_delta = priv_accountant.get_privacy_spent(sess, \
@@ -375,31 +378,7 @@ def runTensorFlow(sigma, clippingValue, batchSize, epsilon, delta):
                 print("Termination Step : " + str(step))
                 should_terminate = True
 
-                n_class = np.zeros(10)
-
-                n_class[0] = 5923
-                n_class[1] = 6742
-                n_class[2] = 5958
-                n_class[3] = 6131
-                n_class[4] = 5842
-                n_class[5] = 5421
-                n_class[6] = 5918
-                n_class[7] = 6265
-                n_class[8] = 5851
-                n_class[9] = 5949
-
-                n_image = int(sum(n_class))
-                image_lables = np.zeros(shape=[n_image, len(n_class)])
-
-                image_cntr = 0
-                for class_cntr in np.arange(len(n_class)):
-                    for cntr in np.arange(n_class[class_cntr]):
-                        image_lables[image_cntr, class_cntr] = 1
-                        image_cntr += 1
-
-                Z_sample = sample_Z(n_image, Z_dim)
-
-                images = sess.run(G_sample, feed_dict={Z: Z_sample, y: image_lables})
+                return
 
                 X_test, Y_test = loadlocal_mnist(
                     images_path=baseDir + 'mnist_dataset/t10k-images.idx3-ubyte',

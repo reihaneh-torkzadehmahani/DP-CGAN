@@ -21,7 +21,8 @@ import os
 import sys
 
 # Import required Differential Privacy packages
-baseDir = "/content/gdrive/Team Drives/PrivacyGenomics/"
+#baseDir = "/content/gdrive/Team Drives/PrivacyGenomics/"
+baseDir = "../"
 sys.path.append(baseDir);
 
 from differential_privacy.dp_sgd.dp_optimizer import dp_optimizer
@@ -324,6 +325,11 @@ def runTensorFlow(sigma, clippingValue, batchSize, epsilon, delta):
                     plt.close(fig)
 
                 X_mb, y_mb = mnist.train.next_batch(batch_size, shuffle=True)
+
+                print(X_mb.shape)
+                print(y_mb.shape)
+
+                return
                 Z_sample = sample_Z(batch_size, Z_dim)
 
                 # Update the discriminator network

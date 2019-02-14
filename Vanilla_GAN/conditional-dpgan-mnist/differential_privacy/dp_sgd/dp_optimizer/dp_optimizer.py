@@ -210,6 +210,56 @@ class DPGradientDescentOptimizer(tf.train.GradientDescentOptimizer):
                                tf.mod(self._batch_count,
                                       tf.constant(self._batches_per_lot)))
 
+    def minimize_base(self, d_loss_real, d_loss_fake, global_step=None, var_list=None,
+                          name=None):
+            """Minimize using sanitized gradients
+
+            Args:
+              d_loss_real: the loss tensor for real data
+              d_loss_fake: the loss tensor for fake data
+              global_step: the optional global step.
+              var_list: the optional variables.
+              name: the optional name.
+            Returns:
+              the operation that runs one step of DP gradient descent.
+            """
+
+            # First validate the var_list
+
+            if var_list is None:
+                var_list = tf.trainable_variables()
+            for var in var_list:
+                if not isinstance(var, tf.Variable):
+                    raise TypeError("Argument is not a variable.Variable: %s" % var)
+
+            # Modification: apply gradient once every batches_per_lot many steps.
+            # This may lead to smaller error
+
+            if self._batches_per_lot == 1:
+                # ------------------  OUR METHOD --------------------------------
+                # compute_sanitized_gradients for fake data after clipping the gradients (without adding noise)
+                f_grads_and_vars = self.compute_sanitized_gradients(d_loss_fake, var_list=var_list, add_noise=True)
+
+                # compute_sanitized_gradients for real data : clip the gradients and then add noise to them
+                r_grads_and_vars = self.compute_sanitized_gradients(d_loss_real, var_list=var_list, add_noise=True)
+
+                # Compute the overall gradients by combining the computed gradients for real data and fake data
+                s_grads_and_vars = [(r_grads_and_vars[idx] + f_grads_and_vars[idx]) for idx in
+                                    range(len(r_grads_and_vars))]
+
+                sanitized_grads_and_vars = list(zip(s_grads_and_vars, var_list))
+                self._assert_valid_dtypes([v for g, v in sanitized_grads_and_vars if g is not None])
+
+                # Apply the overall gradients
+                apply_grads = self.apply_gradients(sanitized_grads_and_vars, global_step=global_step, name=name)
+
+                return apply_grads
+                # ---------------------------------------------------------------------------------------------------------------------------
+
+            update_cond = tf.equal(tf.constant(0),
+                                   tf.mod(self._batch_count,
+                                          tf.constant(self._batches_per_lot)))
+
     def non_last_in_lot_op(loss, var_list):
         """Ops to do for a typical batch.
 

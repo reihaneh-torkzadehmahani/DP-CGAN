@@ -69,6 +69,7 @@ def make_optimizer_class(cls):
             # we sampled each microbatch from the appropriate binomial distribution,
             # although that still wouldn't be quite correct because it would be
             # sampling from the dataset without replacement.
+
             microbatches_losses = tf.reshape(loss, [self._num_microbatches, -1])
             sample_params = (self._dp_average_query.derive_sample_params(self._global_state))
 

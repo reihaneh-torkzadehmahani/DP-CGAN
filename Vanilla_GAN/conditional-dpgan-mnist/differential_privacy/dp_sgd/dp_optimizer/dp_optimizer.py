@@ -235,26 +235,79 @@ class DPGradientDescentOptimizer(tf.train.GradientDescentOptimizer):
             # Modification: apply gradient once every batches_per_lot many steps.
             # This may lead to smaller error
 
+            
+            
             if self._batches_per_lot == 1:
-                # ------------------  OUR METHOD --------------------------------
-                # compute_sanitized_gradients for fake data after clipping the gradients (without adding noise)
-                f_grads_and_vars = self.compute_sanitized_gradients(d_loss_fake, var_list=var_list, add_noise=True)
+                
+                # # ------------------  OUR METHOD --------------------------------
+                # # compute_sanitized_gradients for fake data after clipping the gradients (without adding noise)
+                # f_grads_and_vars = self.compute_sanitized_gradients(d_loss_fake, var_list=var_list, add_noise=True)
+                #
+                # # compute_sanitized_gradients for real data : clip the gradients and then add noise to them
+                # r_grads_and_vars = self.compute_sanitized_gradients(d_loss_real, var_list=var_list, add_noise=True)
+                #
+                # # Compute the overall gradients by combining the computed gradients for real data and fake data
+                # s_grads_and_vars = [(r_grads_and_vars[idx] + f_grads_and_vars[idx]) for idx in
+                #                     range(len(r_grads_and_vars))]
+                #
+                # sanitized_grads_and_vars = list(zip(s_grads_and_vars, var_list))
+                # self._assert_valid_dtypes([v for g, v in sanitized_grads_and_vars if g is not None])
+                #
+                # # Apply the overall gradients
+                # apply_grads = self.apply_gradients(sanitized_grads_and_vars, global_step=global_step, name=name)
+                #
+                # return apply_grads
+                # # ---------------------------------------------------------------------------------------------------------------------------
+                # New strategy
 
-                # compute_sanitized_gradients for real data : clip the gradients and then add noise to them
-                r_grads_and_vars = self.compute_sanitized_gradients(d_loss_real, var_list=var_list, add_noise=True)
 
-                # Compute the overall gradients by combining the computed gradients for real data and fake data
-                s_grads_and_vars = [(r_grads_and_vars[idx] + f_grads_and_vars[idx]) for idx in
-                                    range(len(r_grads_and_vars))]
 
-                sanitized_grads_and_vars = list(zip(s_grads_and_vars, var_list))
+                xs = [tf.convert_to_tensor(x) for x in var_list]
+                px_grads_f = per_example_gradients.PerExampleGradients(d_loss_fake, xs)
+                print (px_grads_f)
+                xs = [tf.convert_to_tensor(x) for x in var_list]
+                px_grads_r = per_example_gradients.PerExampleGradients(d_loss_real, xs)
+                print (px_grads_r)
+                px_grads = [( px_grads_f[idx] + px_grads_r[idx]) for idx in range(len(px_grads_r))]
+
+                print(px_grads)
+                sanitized_grads = []
+                for px_grad, v in zip(px_grads, var_list):
+                    #tensor_name = utils.GetTensorOpName(v)
+                    sanitized_grad = self._sanitizer.sanitize(
+                        px_grad, self._eps_delta, sigma=self._sigma,
+                        tensor_name=None, add_noise=True,
+                        num_examples=self._batches_per_lot * tf.slice(
+                            tf.shape(px_grad), [0], [1]))
+                    sanitized_grads.append(sanitized_grad)
+
+                sanitized_grads_and_vars = list(zip(sanitized_grads, var_list))
                 self._assert_valid_dtypes([v for g, v in sanitized_grads_and_vars if g is not None])
 
                 # Apply the overall gradients
                 apply_grads = self.apply_gradients(sanitized_grads_and_vars, global_step=global_step, name=name)
 
                 return apply_grads
-                # ---------------------------------------------------------------------------------------------------------------------------
+
+#                 # ------------------  OUR METHOD --------------------------------
+#                 # compute_sanitized_gradients for fake data after clipping the gradients (without adding noise)
+#                 f_grads_and_vars = self.compute_sanitized_gradients(d_loss_fake, var_list=var_list, add_noise=True)
+
+#                 # compute_sanitized_gradients for real data : clip the gradients and then add noise to them
+#                 r_grads_and_vars = self.compute_sanitized_gradients(d_loss_real, var_list=var_list, add_noise=True)
+
+#                 # Compute the overall gradients by combining the computed gradients for real data and fake data
+#                 s_grads_and_vars = [(r_grads_and_vars[idx] + f_grads_and_vars[idx]) for idx in
+#                                     range(len(r_grads_and_vars))]
+
+#                 sanitized_grads_and_vars = list(zip(s_grads_and_vars, var_list))
+#                 self._assert_valid_dtypes([v for g, v in sanitized_grads_and_vars if g is not None])
+
+#                 # Apply the overall gradients
+#                 apply_grads = self.apply_gradients(sanitized_grads_and_vars, global_step=global_step, name=name)
+
+#                 return apply_grads
+#                 # ---------------------------------------------------------------------------------------------------------------------------
 
             update_cond = tf.equal(tf.constant(0),
                                    tf.mod(self._batch_count,

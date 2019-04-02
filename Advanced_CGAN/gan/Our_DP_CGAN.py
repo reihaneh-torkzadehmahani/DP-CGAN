@@ -3,14 +3,13 @@ from __future__ import division
 
 import time
 
-from privacy.optimizers import our_dp_optimizer
-from privacy.optimizers import dp_optimizer
+from differential_privacy.optimizer import dp_optimizer
 
 from gan.ops import *
 from gan.utils import *
 
-from privacy.analysis.rdp_accountant import compute_rdp
-from privacy.analysis.rdp_accountant import get_privacy_spent
+from differential_privacy.analysis.rdp_accountant import compute_rdp
+from differential_privacy.analysis.rdp_accountant import get_privacy_spent
 
 from mlxtend.data import loadlocal_mnist
 from sklearn.preprocessing import label_binarize
@@ -67,7 +66,7 @@ class OUR_DP_CGAN(object):
             self.num_batches = len(self.data_X) // self.batch_size
 
 
-        elif dataset_name == 'cifar10':
+        elif dataset_name == 'cifar10' :
             # parameters
             self.input_height = 32
             self.input_width = 32
@@ -89,25 +88,6 @@ class OUR_DP_CGAN(object):
 
             # load cifar10
             self.data_X, self.data_y = load_cifar10()
-
-            '''
-            # revice image data // M*N*3 // RGB float32 : value must set between 0. with 1.
-            vMin = np.amin(self.data_X[0])
-            vMax = np.amax(self.data_X[0])
-            img_arr = self.data_X[0].reshape(32*32*3,1) # flatten
-            for i, v in enumerate(img_arr):
-                img_arr[i] = (v-vMin)/(vMax-vMin)
-            img_arr = img_arr.reshape(32,32,3) # M*N*3
-            # matplot display
-            plt.subplot(1,1,1),plt.imshow(img_arr, interpolation='nearest')
-            plt.title("pred.:{}".format(np.argmax(self.data_y[0]),fontsize=10))
-            plt.axis("off")
-            imgName = "{}.png".format(datetime.now())
-            imgName = imgName.replace(":","_")
-            #plt.savefig(os.path.join(".\\pic_result",imgName))
-            plt.savefig(imgName)
-            plt.show()            
-            '''
 
             self.num_batches = len(self.data_X) // self.batch_size
 
@@ -262,26 +242,19 @@ class OUR_DP_CGAN(object):
 
         # optimizers
         with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-            D_optim0 = our_dp_optimizer.DPGradientDescentGaussianOptimizer(l2_norm_clip=self.l2_norm_clip,
+            d_optim_init = dp_optimizer.DPGradientDescentGaussianOptimizer(l2_norm_clip=self.l2_norm_clip,
                                                                            noise_multiplier=self.noise_multiplier,
                                                                            num_microbatches=self.batch_size,
                                                                            learning_rate=self.learningRateD)
 
             global_step = tf.train.get_global_step()
 
-            self.d_optim = D_optim0.minimize_ours(d_loss_real=self.d_loss_real_vec, d_loss_fake=self.d_loss_fake_vec,
+            self.d_optim = d_optim_init.minimize_ours(d_loss_real=self.d_loss_real_vec, d_loss_fake=self.d_loss_fake_vec,
                                                   global_step=global_step, var_list=d_vars)
 
-            # vec_loss = d_loss_real_vec + d_loss_fake_vec
-            # optimizer = our_dp_optimizer.DPGradientDescentGaussianOptimizer(l2_norm_clip=self.l2_norm_clip,noise_multiplier=self.noise_multiplier,num_microbatches=self.batch_size,learning_rate=self.learningRateD)
-            # self.d_optim = optimizer.minimize( d_loss_real =d_loss_real_vec, d_loss_fake = d_loss_fake_vec, global_step=global_step, var_list=d_vars)
-            # self.d_optim = tf.train.AdamOptimizer(self.learningRateD, beta1=self.beta1) \
-            #          .minimize(self.d_loss, var_list=d_vars)
             self.g_optim = tf.train.AdamOptimizer(self.learningRateG, beta1=self.beta1) \
                 .minimize(self.g_loss, var_list=g_vars)
 
-            # self.g_optim = tf.train.AdamOptimizer(self.learningRateG, beta1=self.beta1) \
-            #    .minimize(self.g_loss, var_list=g_vars)
 
         """" Testing """
         # for test

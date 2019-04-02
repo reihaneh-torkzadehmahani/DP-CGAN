@@ -19,7 +19,7 @@ from __future__ import print_function
 
 import tensorflow as tf
 
-from old.privacy.optimizers import gaussian_query
+from differential_privacy.optimizer import gaussian_query
 
 
 def make_optimizer_class(cls):
@@ -101,6 +101,70 @@ def make_optimizer_class(cls):
               sample_state, self._global_state))
 
       return list(zip(final_grads, var_list))
+
+    def minimize(
+            self,
+            d_loss_real,
+            d_loss_fake,
+            global_step=None,
+            var_list=None,
+            gate_gradients=tf.train.Optimizer.GATE_OP,
+            aggregation_method=None,
+            colocate_gradients_with_ops=False,
+            name=None,
+            grad_loss=None):
+
+        """Minimize using sanitized gradients
+        Computes gradient of loss on real data, clips it, adds noise to it ,
+        Computes gradient of loss on real data and clips it,
+        Add up these two gradients and apply gradients
+
+
+        Args:
+          d_loss_real: the loss tensor for real data
+          d_loss_fake: the loss tensor for fake data
+          global_step: the optional global step.
+          var_list: the optional variables.
+          name: the optional name.
+        Returns:
+          the operation that runs one step of DP gradient descent.
+        """
+
+        # First validate the var_list
+
+        if var_list is None:
+            var_list = tf.trainable_variables()
+        for var in var_list:
+            if not isinstance(var, tf.Variable):
+                raise TypeError("Argument is not a variable.Variable: %s" % var)
+
+        # Modification: apply gradient once every batches_per_lot many steps.
+        # This may lead to smaller error
+
+        r_grads = self.dp_compute_gradients(
+            d_loss_real, var_list=var_list, gate_gradients=gate_gradients,
+            aggregation_method=aggregation_method,
+            colocate_gradients_with_ops=colocate_gradients_with_ops,
+            grad_loss=grad_loss, noise_flag=True)
+
+        f_grads = self.dp_compute_gradients(
+            d_loss_fake, var_list=var_list, gate_gradients=gate_gradients,
+            aggregation_method=aggregation_method,
+            colocate_gradients_with_ops=colocate_gradients_with_ops,
+            grad_loss=grad_loss, noise_flag=False)
+
+        # Compute the overall gradients by combining the computed gradients for real data and fake data
+
+        s_grads = [(r_grads[idx] + f_grads[idx]) for idx in range(len(r_grads))]
+
+        sanitized_grads_and_vars = list(zip(s_grads, var_list))
+        self._assert_valid_dtypes([v for g, v in sanitized_grads_and_vars if g is not None])
+
+        # Apply the overall gradients
+
+        apply_grads = self.apply_gradients(sanitized_grads_and_vars, global_step=global_step, name=name)
+
+        return apply_grads
 
   return DPOptimizerClass
 

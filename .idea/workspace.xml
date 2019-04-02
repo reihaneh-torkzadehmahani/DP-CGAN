@@ -2,8 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="3b37198d-7690-4060-b751-839dd299faa9" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/Advanced_CGAN/main_base_dp_vanilla_cgan.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Advanced_CGAN/differential_privacy/optimizer/base_dp_optimizer.py" beforeDir="false" afterPath="$PROJECT_DIR$/Advanced_CGAN/differential_privacy/optimizer/base_dp_optimizer.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Vanilla_GAN/conditional-dpgan-mnist/cond_our_dp-gan_RdpAcc.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Vanilla_GAN/conditional-dpgan-mnist/cond_our_dp_gan.py" beforeDir="false" afterPath="$PROJECT_DIR$/Vanilla_GAN/conditional-dpgan-mnist/cond_our_dp_gan_MomentAcc.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -15,83 +16,64 @@
     <session id="-1662819748">
       <usages-collector id="statistics.lifecycle.project">
         <counts>
-          <entry key="project.closed" value="1" />
+          <entry key="project.closed" value="2" />
           <entry key="project.open.time.0" value="1" />
-          <entry key="project.open.time.2" value="1" />
-          <entry key="project.opened" value="2" />
+          <entry key="project.open.time.2" value="2" />
+          <entry key="project.open.time.3" value="1" />
+          <entry key="project.opened" value="4" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.extensions.open">
         <counts>
-          <entry key="py" value="6" />
+          <entry key="py" value="9" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.open">
         <counts>
-          <entry key="Python" value="6" />
+          <entry key="Python" value="9" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.extensions.edit">
         <counts>
-          <entry key="py" value="242" />
+          <entry key="dummy" value="10" />
+          <entry key="py" value="262" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.edit">
         <counts>
-          <entry key="Python" value="242" />
+          <entry key="PLAIN_TEXT" value="10" />
+          <entry key="Python" value="262" />
         </counts>
       </usages-collector>
     </session>
   </component>
   <component name="FileEditorManager">
-    <leaf>
+    <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/Advanced_CGAN/main_our-dp-cgan.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state>
+              <folding>
+                <element signature="e#0#23#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/Vanilla_GAN/conditional-dpgan-mnist/cond_our_dp_gan_MomentAcc.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="-425">
+              <caret line="35" column="13" selection-start-line="35" selection-start-column="13" selection-end-line="35" selection-end-column="13" />
+            </state>
+          </provider>
+        </entry>
+      </file>
       <file pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/Advanced_CGAN/main_base_dp_vanilla_cgan.py">
+        <entry file="file://$PROJECT_DIR$/Vanilla_GAN/conditional-dpgan-mnist/cond_our_dp-gan_RdpAcc.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="209">
-              <caret line="470" column="50" selection-start-line="470" selection-start-column="50" selection-end-line="470" selection-end-column="50" />
-              <folding>
-                <element signature="e#0#40#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/../dp-dcgan/venv/lib/python3.4/site-packages/tensorflow/python/ops/array_ops.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="150">
-              <caret line="1746" selection-start-line="1746" selection-end-line="1746" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/Advanced_CGAN/gan/Base_DP_CGAN.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="203">
-              <caret line="247" column="105" selection-start-line="245" selection-start-column="20" selection-end-line="247" selection-end-column="105" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/Advanced_CGAN/differential_privacy/optimizer/base_dp_optimizer.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="119">
-              <caret line="71" selection-start-line="71" selection-end-line="71" />
-              <folding>
-                <element signature="e#646#684#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/Advanced_CGAN/differential_privacy/optimizer/our_dp_optimizer.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="711">
-              <caret line="71" column="44" selection-start-line="71" selection-start-column="37" selection-end-line="71" selection-end-column="44" />
+            <state relative-caret-position="237">
+              <caret line="365" column="33" lean-forward="true" selection-start-line="365" selection-start-column="33" selection-end-line="365" selection-end-column="33" />
             </state>
           </provider>
         </entry>
@@ -117,6 +99,8 @@
       <find>D_loss_fake_curr</find>
       <find>lr</find>
       <find>num_training_steps</find>
+      <find>gaussian_sanitizer</find>
+      <find>eps</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -129,6 +113,8 @@
         <option value="$PROJECT_DIR$/Advanced_CGAN/gan/Base_DP_CGAN.py" />
         <option value="$PROJECT_DIR$/Advanced_CGAN/differential_privacy/optimizer/base_dp_optimizer.py" />
         <option value="$PROJECT_DIR$/Advanced_CGAN/main_base_dp_vanilla_cgan.py" />
+        <option value="$PROJECT_DIR$/Vanilla_GAN/conditional-dpgan-mnist/cond_our_dp_gan.py" />
+        <option value="$PROJECT_DIR$/Vanilla_GAN/conditional-dpgan-mnist/cond_our_dp-gan_RdpAcc.py" />
       </list>
     </option>
   </component>
@@ -142,7 +128,6 @@
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
-      <pane id="Scope" />
       <pane id="ProjectPane">
         <subPane>
           <expand>
@@ -153,18 +138,19 @@
             <path>
               <item name="MyDPGAN" type="b2602c69:ProjectViewProjectNode" />
               <item name="MyDPGAN" type="462c0819:PsiDirectoryNode" />
-              <item name="Advanced_CGAN" type="462c0819:PsiDirectoryNode" />
+              <item name="Vanilla_GAN" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
               <item name="MyDPGAN" type="b2602c69:ProjectViewProjectNode" />
               <item name="MyDPGAN" type="462c0819:PsiDirectoryNode" />
-              <item name="Advanced_CGAN" type="462c0819:PsiDirectoryNode" />
-              <item name="differential_privacy" type="462c0819:PsiDirectoryNode" />
+              <item name="Vanilla_GAN" type="462c0819:PsiDirectoryNode" />
+              <item name="conditional-dpgan-mnist" type="462c0819:PsiDirectoryNode" />
             </path>
           </expand>
           <select />
         </subPane>
       </pane>
+      <pane id="Scope" />
     </panes>
   </component>
   <component name="PropertiesComponent">
@@ -183,7 +169,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.main_base_dp_vanilla_cgan">
+  <component name="RunManager" selected="Python.cond_our_dp-gan_RdpAcc">
     <configuration name="base_dp_optimizer" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="MyDPGAN" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -197,6 +183,27 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Advanced_CGAN/differential_privacy/optimizer/base_dp_optimizer.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="cond_our_dp-gan_RdpAcc" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="MyDPGAN" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$PROJECT_DIR$/../dp-dcgan/venv/bin/python" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Vanilla_GAN/conditional-dpgan-mnist" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Vanilla_GAN/conditional-dpgan-mnist/cond_our_dp-gan_RdpAcc.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -229,9 +236,11 @@
     <list>
       <item itemvalue="Python.main_base_dp_vanilla_cgan" />
       <item itemvalue="Python.base_dp_optimizer" />
+      <item itemvalue="Python.cond_our_dp-gan_RdpAcc" />
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.cond_our_dp-gan_RdpAcc" />
         <item itemvalue="Python.main_base_dp_vanilla_cgan" />
         <item itemvalue="Python.base_dp_optimizer" />
       </list>
@@ -277,23 +286,40 @@
     <option name="myLimit" value="2678400000" />
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/Advanced_CGAN/differential_privacy/optimizer/our_dp_optimizer.py">
+    <entry file="file://$PROJECT_DIR$/Advanced_CGAN/main_base-dp-cgan.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="711">
-          <caret line="71" column="44" selection-start-line="71" selection-start-column="37" selection-end-line="71" selection-end-column="44" />
+        <state relative-caret-position="435">
+          <caret line="29" column="32" selection-start-line="29" selection-start-column="32" selection-end-line="29" selection-end-column="32" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/Advanced_CGAN/main_base_dp_vanilla_cgan.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="803">
+          <caret line="470" column="50" selection-start-line="470" selection-start-column="50" selection-end-line="470" selection-end-column="50" />
+          <folding>
+            <element signature="e#0#40#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../dp-dcgan/venv/lib/python3.4/site-packages/tensorflow/python/ops/array_ops.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="803">
+          <caret line="1746" selection-start-line="1746" selection-end-line="1746" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/Advanced_CGAN/gan/Base_DP_CGAN.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="203">
-          <caret line="247" column="105" selection-start-line="245" selection-start-column="20" selection-end-line="247" selection-end-column="105" />
+        <state relative-caret-position="803">
+          <caret line="231" column="32" selection-start-line="231" selection-start-column="32" selection-end-line="231" selection-end-column="32" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/Advanced_CGAN/differential_privacy/optimizer/base_dp_optimizer.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="119">
+        <state relative-caret-position="803">
           <caret line="71" selection-start-line="71" selection-end-line="71" />
           <folding>
             <element signature="e#646#684#0" expanded="true" />
@@ -301,30 +327,33 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/Advanced_CGAN/main_base-dp-cgan.py">
+    <entry file="file://$PROJECT_DIR$/Advanced_CGAN/differential_privacy/optimizer/our_dp_optimizer.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="435">
-          <caret line="29" column="32" selection-start-line="29" selection-start-column="32" selection-end-line="29" selection-end-column="32" />
+        <state relative-caret-position="803">
+          <caret line="71" column="44" selection-start-line="71" selection-start-column="37" selection-end-line="71" selection-end-column="44" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/Advanced_CGAN/main_our-dp-cgan.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
           <folding>
             <element signature="e#0#23#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/../dp-dcgan/venv/lib/python3.4/site-packages/tensorflow/python/ops/array_ops.py">
+    <entry file="file://$PROJECT_DIR$/Vanilla_GAN/conditional-dpgan-mnist/cond_our_dp_gan_MomentAcc.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="150">
-          <caret line="1746" selection-start-line="1746" selection-end-line="1746" />
+        <state relative-caret-position="-425">
+          <caret line="35" column="13" selection-start-line="35" selection-start-column="13" selection-end-line="35" selection-end-column="13" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/Advanced_CGAN/main_base_dp_vanilla_cgan.py">
+    <entry file="file://$PROJECT_DIR$/Vanilla_GAN/conditional-dpgan-mnist/cond_our_dp-gan_RdpAcc.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="209">
-          <caret line="470" column="50" selection-start-line="470" selection-start-column="50" selection-end-line="470" selection-end-column="50" />
-          <folding>
-            <element signature="e#0#40#0" expanded="true" />
-          </folding>
+        <state relative-caret-position="237">
+          <caret line="365" column="33" lean-forward="true" selection-start-line="365" selection-start-column="33" selection-end-line="365" selection-end-column="33" />
         </state>
       </provider>
     </entry>

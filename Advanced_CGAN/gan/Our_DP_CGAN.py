@@ -1,61 +1,45 @@
 # -*- coding: utf-8 -*-
 from __future__ import division
-import time
-import tensorflow as tf
 
+import time
+
+from privacy.optimizers import our_dp_optimizer
+from privacy.optimizers import dp_optimizer
+
+from gan.ops import *
+from gan.utils import *
+
+from privacy.analysis.rdp_accountant import compute_rdp
+from privacy.analysis.rdp_accountant import get_privacy_spent
 
 from mlxtend.data import loadlocal_mnist
 from sklearn.preprocessing import label_binarize
+
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.metrics import roc_curve, auc
-from sklearn import svm
-from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.naive_bayes import GaussianNB
-from sklearn.naive_bayes import BernoulliNB
-from sklearn.ensemble import AdaBoostClassifier
 from sklearn.neural_network import MLPClassifier
 
-from gan.utils import *
-from gan.ops import *
 
-from differential_privacy.privacy_accountant.tf import accountant
-from differential_privacy.optimizer import our_dp_optimizer
+class OUR_DP_CGAN(object):
+    model_name = "OUR_DP_CGAN"  # name for checkpoint
 
-
-base_dir = "./"
-
-class Our_DP_CGAN(object):
-    model_name = "DP_CGAN"  # name for checkpoint
-
-    def __init__(
-            self,
-            sess,
-            epoch,
-            z_dim,
-            batch_size,
-            sigma,
-            clipping,
-            delta,
-            epsilon,
-            learning_rate,
-            dataset_name,
-            base_dir,
-            result_dir):
-
-        self.accountant = accountant.GaussianMomentsAccountant(60000)
+    def __init__(self, sess, epoch, batch_size, z_dim, epsilon, delta, sigma, clip_value, lr, dataset_name, base_dir,
+                 checkpoint_dir, result_dir, log_dir):
         self.sess = sess
         self.dataset_name = dataset_name
         self.base_dir = base_dir
+        self.checkpoint_dir = checkpoint_dir
         self.result_dir = result_dir
+        self.log_dir = log_dir
         self.epoch = epoch
         self.batch_size = batch_size
-        self.sigma = sigma
-        self.clipping = clipping
-        self.delta = delta
         self.epsilon = epsilon
-        self.learning_rate = learning_rate
+        self.delta = delta
+        self.noise_multiplier = sigma
+        self.l2_norm_clip = clip_value
+        self.lr = lr
 
         if dataset_name == 'mnist' or dataset_name == 'fashion-mnist':
             # parameters
@@ -69,63 +53,172 @@ class Our_DP_CGAN(object):
             self.c_dim = 1
 
             # train
+            self.learningRateD = self.lr
+            self.learningRateG = self.learningRateD * 5
             self.beta1 = 0.5
 
             # test
             self.sample_num = 64  # number of generated images to be saved
 
             # load mnist
-            self.data_X, self.data_y = load_mnist(self.dataset_name, self.base_dir)
+            self.data_X, self.data_y = load_mnist(self.dataset_name, self.base_dir + "data/")
 
             # get number of batches for a single epoch
             self.num_batches = len(self.data_X) // self.batch_size
+
+
+        elif dataset_name == 'cifar10':
+            # parameters
+            self.input_height = 32
+            self.input_width = 32
+            self.output_height = 32
+            self.output_width = 32
+
+            self.z_dim = 100  # dimension of noise-vector
+            self.y_dim = 10  # dimension of condition-vector (label)
+            self.c_dim = 3  # color dimension
+
+            # train
+            # self.learning_rate = 0.0002 # 1e-3, 1e-4
+            self.learningRateD = 1e-3
+            self.learningRateG = 1e-4
+            self.beta1 = 0.5
+
+            # test
+            self.sample_num = 64  # number of generated images to be saved
+
+            # load cifar10
+            self.data_X, self.data_y = load_cifar10()
+
+            '''
+            # revice image data // M*N*3 // RGB float32 : value must set between 0. with 1.
+            vMin = np.amin(self.data_X[0])
+            vMax = np.amax(self.data_X[0])
+            img_arr = self.data_X[0].reshape(32*32*3,1) # flatten
+            for i, v in enumerate(img_arr):
+                img_arr[i] = (v-vMin)/(vMax-vMin)
+            img_arr = img_arr.reshape(32,32,3) # M*N*3
+            # matplot display
+            plt.subplot(1,1,1),plt.imshow(img_arr, interpolation='nearest')
+            plt.title("pred.:{}".format(np.argmax(self.data_y[0]),fontsize=10))
+            plt.axis("off")
+            imgName = "{}.png".format(datetime.now())
+            imgName = imgName.replace(":","_")
+            #plt.savefig(os.path.join(".\\pic_result",imgName))
+            plt.savefig(imgName)
+            plt.show()            
+            '''
+
+            self.num_batches = len(self.data_X) // self.batch_size
+
         else:
             raise NotImplementedError
 
     def discriminator(self, x, y, is_training=True, reuse=False):
-
         # Network Architecture is exactly same as in infoGAN (https://arxiv.org/abs/1606.03657)
         # Architecture : (64)4c2s-(128)4c2s_BL-FC1024_BL-FC1_S
         with tf.variable_scope("discriminator", reuse=reuse):
-            # merge image and label
-            y = tf.reshape(y, [self.batch_size, 1, 1, self.y_dim])
-            x = conv_cond_concat(x, y)
 
-            net = lrelu(conv2d(x, 64, 4, 4, 2, 2, name='d_conv1'))
-            net = lrelu(bn(conv2d(net, 128, 4, 4, 2, 2, name='d_conv2'), is_training=is_training, scope='d_bn2'))
-            net = tf.reshape(net, [self.batch_size, -1])
-            net = lrelu(bn(linear(net, 1024, scope='d_fc3'), is_training=is_training, scope='d_bn3'))
-            out_logit = linear(net, 1, scope='d_fc4')
-            out = tf.nn.sigmoid(out_logit)
+            # merge image and label
+            if (self.dataset_name == "mnist"):
+                y = tf.reshape(y, [self.batch_size, 1, 1, self.y_dim])
+                x = conv_cond_concat(x, y)
+
+                net = lrelu(conv2d(x, 64, 4, 4, 2, 2, name='d_conv1'))
+                net = lrelu(bn(conv2d(net, 128, 4, 4, 2, 2, name='d_conv2'), is_training=is_training, scope='d_bn2'))
+                net = tf.reshape(net, [self.batch_size, -1])
+                net = lrelu(bn(linear(net, 1024, scope='d_fc3'), is_training=is_training, scope='d_bn3'))
+                out_logit = linear(net, 1, scope='d_fc4')
+                out = tf.nn.sigmoid(out_logit)
+
+            elif (self.dataset_name == "cifar10"):
+
+                print("D:", x.get_shape())  # 32, 32, 3 = 3072
+                net = lrelu(conv2d(x, 64, 5, 5, 2, 2, name='d_conv1' + '_' + self.dataset_name))
+                print("D:", net.get_shape())
+                net = lrelu(bn(conv2d(net, 128, 5, 5, 2, 2, name='d_conv2' + '_' + self.dataset_name),
+                               is_training=is_training, scope='d_bn2'))
+                print("D:", net.get_shape())
+                net = lrelu(bn(conv2d(net, 256, 5, 5, 2, 2, name='d_conv3' + '_' + self.dataset_name),
+                               is_training=is_training, scope='d_bn3'))
+                print("D:", net.get_shape())
+                net = lrelu(bn(conv2d(net, 512, 5, 5, 2, 2, name='d_conv4' + '_' + self.dataset_name),
+                               is_training=is_training, scope='d_bn4'))
+                print("D:", net.get_shape())
+                net = tf.reshape(net, [self.batch_size, -1])
+                print("D:", net.get_shape())
+                out_logit = linear(net, 1, scope='d_fc5' + '_' + self.dataset_name)
+                print("D:", net.get_shape())
+                out = tf.nn.sigmoid(out_logit)
+                print("D:", out.get_shape())
+                print("------------------------")
 
             return out, out_logit, net
 
     def generator(self, z, y, is_training=True, reuse=False):
-
         # Network Architecture is exactly same as in infoGAN (https://arxiv.org/abs/1606.03657)
         # Architecture : FC1024_BR-FC7x7x128_BR-(64)4dc2s_BR-(1)4dc2s_S
         with tf.variable_scope("generator", reuse=reuse):
-            # merge noise and label
-            z = concat([z, y], 1)
 
-            net = tf.nn.relu(bn(linear(z, 1024, scope='g_fc1'), is_training=is_training, scope='g_bn1'))
-            net = tf.nn.relu(bn(linear(net, 128 * 7 * 7, scope='g_fc2'), is_training=is_training, scope='g_bn2'))
-            net = tf.reshape(net, [self.batch_size, 7, 7, 128])
-            net = tf.nn.relu(bn(deconv2d(
-                    net, [self.batch_size, 14, 14, 64], 4, 4, 2, 2, name='g_dc3'),
-                    is_training=is_training, scope='g_bn3'))
+            if (self.dataset_name == "mnist"):
+                # merge noise and label
+                z = concat([z, y], 1)
 
-            out = tf.nn.sigmoid(deconv2d(net, [self.batch_size, 28, 28, 1], 4, 4, 2, 2, name='g_dc4'))
+                net = tf.nn.relu(bn(linear(z, 1024, scope='g_fc1'), is_training=is_training, scope='g_bn1'))
+                net = tf.nn.relu(bn(linear(net, 128 * 7 * 7, scope='g_fc2'), is_training=is_training, scope='g_bn2'))
+                net = tf.reshape(net, [self.batch_size, 7, 7, 128])
+                net = tf.nn.relu(
+                    bn(deconv2d(net, [self.batch_size, 14, 14, 64], 4, 4, 2, 2, name='g_dc3'), is_training=is_training,
+                       scope='g_bn3'))
+
+                out = tf.nn.sigmoid(deconv2d(net, [self.batch_size, 28, 28, 1], 4, 4, 2, 2, name='g_dc4'))
+
+            elif (self.dataset_name == "cifar10"):
+                h_size = 32
+                h_size_2 = 16
+                h_size_4 = 8
+                h_size_8 = 4
+                h_size_16 = 2
+
+                print("G:", z.get_shape())
+                net = linear(z, 512 * h_size_16 * h_size_16, scope='g_fc1' + '_' + self.dataset_name)
+                print("G:", net.get_shape())
+                net = tf.nn.relu(
+                    bn(tf.reshape(net, [self.batch_size, h_size_16, h_size_16, 512]), is_training=is_training,
+                       scope='g_bn1')
+                )
+                print("G:", net.get_shape())
+                net = tf.nn.relu(
+                    bn(deconv2d(net, [self.batch_size, h_size_8, h_size_8, 256], 5, 5, 2, 2,
+                                name='g_dc2' + '_' + self.dataset_name), is_training=is_training, scope='g_bn2')
+                )
+                print("G:", net.get_shape())
+                net = tf.nn.relu(
+                    bn(deconv2d(net, [self.batch_size, h_size_4, h_size_4, 128], 5, 5, 2, 2,
+                                name='g_dc3' + '_' + self.dataset_name), is_training=is_training, scope='g_bn3')
+                )
+                print("G:", net.get_shape())
+                net = tf.nn.relu(
+                    bn(deconv2d(net, [self.batch_size, h_size_2, h_size_2, 64], 5, 5, 2, 2,
+                                name='g_dc4' + '_' + self.dataset_name), is_training=is_training, scope='g_bn4')
+                )
+                print("G:", net.get_shape())
+                out = tf.nn.tanh(
+                    deconv2d(net, [self.batch_size, self.output_height, self.output_width, self.c_dim], 5, 5, 2, 2,
+                             name='g_dc5' + '_' + self.dataset_name)
+                )
+                print("G:", out.get_shape())
+                print("------------------------")
 
             return out
 
     def build_model(self):
-
         # some parameters
         image_dims = [self.input_height, self.input_width, self.c_dim]
         bs = self.batch_size
 
         """ Graph Input """
+
         # images
         self.inputs = tf.placeholder(tf.float32, [bs] + image_dims, name='real_images')
 
@@ -136,6 +229,7 @@ class Our_DP_CGAN(object):
         self.z = tf.placeholder(tf.float32, [bs, self.z_dim], name='z')
 
         """ Loss Function """
+
         # output of D for real images
         D_real, D_real_logits, _ = self.discriminator(self.inputs, self.y, is_training=True, reuse=False)
 
@@ -146,18 +240,15 @@ class Our_DP_CGAN(object):
         # get loss for discriminator
         d_loss_real = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(logits=D_real_logits, labels=tf.ones_like(D_real)))
-        d_loss_real_vec = tf.nn.sigmoid_cross_entropy_with_logits(logits=D_real_logits, labels=tf.ones_like(D_real))
-
         d_loss_fake = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=tf.zeros_like(D_fake)))
-        d_loss_fake_vec = tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=tf.zeros_like(D_fake))
 
-        self.d_loss_real = d_loss_real
-        self.d_loss_fake = d_loss_fake
-        self.d_loss = self.d_loss_real + self.d_loss_fake
+        self.d_loss_real_vec = tf.nn.sigmoid_cross_entropy_with_logits(logits=D_real_logits,
+                                                                       labels=tf.ones_like(D_real))
+        self.d_loss_fake_vec = tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits,
+                                                                       labels=tf.zeros_like(D_fake))
 
-        self.d_loss_real_vec = d_loss_real_vec
-        self.d_loss_fake_vec = d_loss_fake_vec
+        self.d_loss = d_loss_real + d_loss_fake
 
         # get loss for generator
         self.g_loss = tf.reduce_mean(
@@ -170,39 +261,31 @@ class Our_DP_CGAN(object):
         g_vars = [var for var in t_vars if 'g_' in var.name]
 
         # optimizers
-
         with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-
-            d_optim_init = our_dp_optimizer.DPGradientDescentGaussianOptimizer(
-                    self.accountant,
-                    l2_norm_clip=self.clipping,
-                    noise_multiplier=self.sigma,
-                    num_microbatches=self.batch_size,
-                    learning_rate=self.learning_rate)
+            D_optim0 = our_dp_optimizer.DPGradientDescentGaussianOptimizer(l2_norm_clip=self.l2_norm_clip,
+                                                                           noise_multiplier=self.noise_multiplier,
+                                                                           num_microbatches=self.batch_size,
+                                                                           learning_rate=self.learningRateD)
 
             global_step = tf.train.get_global_step()
 
-            self.d_optim = d_optim_init.minimize(
-                    d_loss_real=d_loss_real_vec,
-                    d_loss_fake=d_loss_fake_vec,
-                    global_step=global_step,
-                    var_list=d_vars)
+            self.d_optim = D_optim0.minimize_ours(d_loss_real=self.d_loss_real_vec, d_loss_fake=self.d_loss_fake_vec,
+                                                  global_step=global_step, var_list=d_vars)
 
-            g_optim_init = tf.train.AdamOptimizer(
-                    self.learning_rate * 125,
-                    beta1=self.beta1)
+            # vec_loss = d_loss_real_vec + d_loss_fake_vec
+            # optimizer = our_dp_optimizer.DPGradientDescentGaussianOptimizer(l2_norm_clip=self.l2_norm_clip,noise_multiplier=self.noise_multiplier,num_microbatches=self.batch_size,learning_rate=self.learningRateD)
+            # self.d_optim = optimizer.minimize( d_loss_real =d_loss_real_vec, d_loss_fake = d_loss_fake_vec, global_step=global_step, var_list=d_vars)
+            # self.d_optim = tf.train.AdamOptimizer(self.learningRateD, beta1=self.beta1) \
+            #          .minimize(self.d_loss, var_list=d_vars)
+            self.g_optim = tf.train.AdamOptimizer(self.learningRateG, beta1=self.beta1) \
+                .minimize(self.g_loss, var_list=g_vars)
 
-            self.g_optim = g_optim_init.minimize(
-                    self.g_loss,
-                    var_list=g_vars)
+            # self.g_optim = tf.train.AdamOptimizer(self.learningRateG, beta1=self.beta1) \
+            #    .minimize(self.g_loss, var_list=g_vars)
 
         """" Testing """
         # for test
-        self.fake_images = self.generator(
-                self.z,
-                self.y,
-                is_training=False,
-                reuse=True)
+        self.fake_images = self.generator(self.z, self.y, is_training=False, reuse=True)
 
         """ Summary """
         d_loss_real_sum = tf.summary.scalar("d_loss_real", d_loss_real)
@@ -226,82 +309,100 @@ class Our_DP_CGAN(object):
         # saver to save model
         self.saver = tf.train.Saver()
 
-        start_epoch = 0
-        counter = 1
+        # summary writer
+        self.writer = tf.summary.FileWriter(self.log_dir + '/' + self.model_name, self.sess.graph)
 
-        should_terminate = False
+        # restore check-point if it exits
+        could_load, checkpoint_counter = self.load(self.checkpoint_dir)
+        if could_load:
+            start_epoch = (int)(checkpoint_counter / self.num_batches)
+            start_batch_id = checkpoint_counter - start_epoch * self.num_batches
+            counter = checkpoint_counter
+            print(" [*] Load SUCCESS")
+        else:
+            start_epoch = 0
+            start_batch_id = 0
+            counter = 1
+            print(" [!] Load failed...")
+
+        # loop for epoch
         epoch = start_epoch
+        should_terminate = False
+        while (epoch < self.epoch and not should_terminate):
 
-        while epoch < self.epoch:
+            # get batch data
+            for idx in range(start_batch_id, self.num_batches):
+                # for idx in range(0,100):
+                batch_images = self.data_X[idx * self.batch_size:(idx + 1) * self.batch_size]
+                batch_labels = self.data_y[idx * self.batch_size:(idx + 1) * self.batch_size]
+                batch_z = np.random.uniform(-1, 1, [self.batch_size, self.z_dim]).astype(np.float32)
 
-            idx = 0
-            #print("epoch : " + str(epoch))
+                # update D network
 
-            while (not should_terminate and idx < self.num_batches):
-                    batch_images = self.data_X[idx * self.batch_size:(idx + 1) * self.batch_size]
-                    batch_labels = self.data_y[idx * self.batch_size:(idx + 1) * self.batch_size]
-                    batch_z = np.random.uniform(-1, 1, [self.batch_size, self.z_dim]).astype(np.float32)
+                _, summary_str, d_loss = self.sess.run([self.d_optim, self.d_sum, self.d_loss],
+                                                       feed_dict={self.inputs: batch_images, self.y: batch_labels,
+                                                                  self.z: batch_z})
+                self.writer.add_summary(summary_str, counter)
 
-                    # update D network
-                    _,  d_loss, _ = self.sess.run(
-                            [self.d_optim, self.d_loss_real_vec, self.d_loss_fake_vec],
-                            feed_dict={self.inputs: batch_images, self.y: batch_labels, self.z: batch_z})
+                eps = self.compute_epsilon((epoch * self.num_batches) + idx)
 
-                    # update G network
-                    _, summary_str, g_loss = self.sess.run(
-                            [self.g_optim, self.g_sum, self.g_loss],
-                            feed_dict={self.y: batch_labels, self.z: batch_z})
+                # For the Moments accountant, we should always have \
+                # spent_eps == max_target_eps.
+                if (eps > self.epsilon):
+                    should_terminate = True
+                    print("TERMINATE !! Run out of Privacy Budget.....")
+                    epoch = self.epoch
+                    break
 
-                    # Flag to terminate based on target privacy budget
-                    terminate_spent_eps_delta = self.accountant.get_privacy_spent(
-                            self.sess,
-                            target_eps=[max(self.epsilon)])[0]
+                # update G network
+                _, summary_str, g_loss = self.sess.run([self.g_optim, self.g_sum, self.g_loss],
+                                                       feed_dict={self.y: batch_labels, self.z: batch_z})
+                self.writer.add_summary(summary_str, counter)
 
-                    # For the Moments accountant, we should always have spent_eps == max_target_eps.
-                    if (terminate_spent_eps_delta.spent_delta > self.delta or
-                        terminate_spent_eps_delta.spent_eps > max(self.epsilon)):
+                # display training status
+                counter += 1
+                # print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
+                #       % (epoch, idx, self.num_batches, time.time() - start_time, d_loss, g_loss))
+                _ = self.sess.run(self.fake_images,
+                                  feed_dict={self.z: self.sample_z, self.y: self.test_labels})
 
-                        should_terminate = True
-                        print("epoch : " + str(epoch))
-                        print("TERMINATE!!! Run out of privacy budget ...")
+                # save training results for every 300 steps
+                if np.mod(counter, 10) == 0:
+                    print("Iteration : " + str(idx) + " Eps: " + str(eps))
+                    samples = self.sess.run(self.fake_images,
+                                            feed_dict={self.z: self.sample_z, self.y: self.test_labels})
+                    tot_num_samples = min(self.sample_num, self.batch_size)
+                    manifold_h = int(np.floor(np.sqrt(tot_num_samples)))
+                    manifold_w = int(np.floor(np.sqrt(tot_num_samples)))
+                    save_images(samples[:manifold_h * manifold_w, :, :, :], [manifold_h, manifold_w],
+                                check_folder(
+                                    self.result_dir + '/' + self.model_dir) + '/' + self.model_name + '_train_{:02d}_{:04d}.png'.format(
+                                    epoch, idx))
+            epoch = epoch + 1
 
-                        spent_eps_deltas = self.accountant.get_privacy_spent(self.sess, target_eps=self.epsilon)
-                        print("Spent Eps and Delta : " + str(spent_eps_deltas))
-                        epoch = self.epoch
-                        break
+            # After an epoch, start_batch_id is set to zero
+            # non-zero value is only for the first epoch after loading pre-trained model
+            start_batch_id = 0
 
-
-
-                    if (idx % 100 == 0):
-
-                        samples = self.sess.run(
-                                self.fake_images,
-                                feed_dict={self.z: self.sample_z, self.y: self.test_labels})
-                        tot_num_samples = min(self.sample_num, self.batch_size)
-                        manifold_h = int(np.floor(np.sqrt(tot_num_samples)))
-                        manifold_w = int(np.floor(np.sqrt(tot_num_samples)))
-                        save_images(
-                                samples[:manifold_h * manifold_w, :, :, :],
-                                [manifold_h, manifold_w],
-                                check_folder(self.result_dir + self.model_dir)\
-                                        + self.model_name\
-                                        + '_train_{:02d}_{:04d}.png'.format(epoch, idx))
-
-                    idx += 1
+            # save model
+            self.save(self.checkpoint_dir, counter)
 
             # show temporal results
-            self.visualize_results(epoch)
+            if (self.dataset_name == 'mnist'):
+                self.visualize_results_MNIST(epoch)
+            elif (self.dataset_name == 'cifar10'):
+                self.visualize_results_CIFAR(epoch)
 
-            epoch += 1
+        # save model for final step
+        self.save(self.checkpoint_dir, counter)
 
-        # compute ROC
+        # Classification  TO-DO: classifier for cifar100
+
         def compute_fpr_tpr_roc(Y_test, Y_score):
-
             n_classes = Y_score.shape[1]
             false_positive_rate = dict()
             true_positive_rate = dict()
             roc_auc = dict()
-
             for class_cntr in range(n_classes):
                 false_positive_rate[class_cntr], true_positive_rate[class_cntr], _ = roc_curve(
                     Y_test[:, class_cntr],
@@ -316,93 +417,187 @@ class Our_DP_CGAN(object):
             return false_positive_rate, true_positive_rate, roc_auc
 
         def classify(X_train, Y_train, X_test, classiferName, random_state_value=0):
-
-            if classiferName == "svm":
-                classifier = OneVsRestClassifier(
-                    svm.SVC(kernel='linear', probability=True, random_state=random_state_value))
-            elif classiferName == "dt":
-                classifier = OneVsRestClassifier(DecisionTreeClassifier(random_state=random_state_value))
-            elif classiferName == "lr":
+            if classiferName == "lr":
                 classifier = OneVsRestClassifier(
                     LogisticRegression(solver='lbfgs', multi_class='multinomial',
                                        random_state=random_state_value))
+            elif classiferName == "mlp":
+                classifier = OneVsRestClassifier(MLPClassifier(random_state=random_state_value, alpha=1))
+
             elif classiferName == "rf":
                 classifier = OneVsRestClassifier(
                     RandomForestClassifier(n_estimators=100, random_state=random_state_value))
-            elif classiferName == "gnb":
-                classifier = OneVsRestClassifier(GaussianNB())
-            elif classiferName == "bnb":
-                classifier = OneVsRestClassifier(BernoulliNB(alpha=.01))
-            elif classiferName == "ab":
-                classifier = OneVsRestClassifier(AdaBoostClassifier(random_state=random_state_value))
-            elif classiferName == "mlp":
-                classifier = OneVsRestClassifier(MLPClassifier(random_state=random_state_value, alpha=1))
+
             else:
                 print("Classifier not in the list!")
                 exit()
-
             Y_score = classifier.fit(X_train, Y_train).predict_proba(X_test)
-
             return Y_score
 
         batch_size = int(self.batch_size)
-        n_class = np.zeros(10)
 
-        n_class[0] = 5923 - batch_size
-        n_class[1] = 6742
-        n_class[2] = 5958
-        n_class[3] = 6131
-        n_class[4] = 5842
-        n_class[5] = 5421
-        n_class[6] = 5918
-        n_class[7] = 6265
-        n_class[8] = 5851
-        n_class[9] = 5949
+        if (self.dataset_name == "mnist"):
 
-        Z_sample = np.random.uniform(-1, 1, size=(batch_size, self.z_dim))
-        y = np.zeros(batch_size, dtype=np.int64) + 0
-        y_one_hot = np.zeros((batch_size, self.y_dim))
-        y_one_hot[np.arange(batch_size), y] = 1
-        images = self.sess.run(self.fake_images, feed_dict={self.z: Z_sample, self.y: y_one_hot})
+            n_class = np.zeros(10)
+            n_class[0] = 5923 - batch_size
+            n_class[1] = 6742
+            n_class[2] = 5958
+            n_class[3] = 6131
+            n_class[4] = 5842
+            n_class[5] = 5421
+            n_class[6] = 5918
+            n_class[7] = 6265
+            n_class[8] = 5851
+            n_class[9] = 5949
 
-        for classLabel in range(0, 10):
-            for _ in range(0, int(n_class[classLabel]), batch_size):
-                Z_sample = np.random.uniform(-1, 1, size=(batch_size, self.z_dim))
-                y = np.zeros(batch_size, dtype=np.int64) + classLabel
-                y_one_hot_init = np.zeros((batch_size, self.y_dim))
-                y_one_hot_init[np.arange(batch_size), y] = 1
+            Z_sample = np.random.uniform(-1, 1, size=(batch_size, self.z_dim))
+            y = np.zeros(batch_size, dtype=np.int64) + 0
+            y_one_hot = np.zeros((batch_size, self.y_dim))
+            y_one_hot[np.arange(batch_size), y] = 1
+            images = self.sess.run(self.fake_images, feed_dict={self.z: Z_sample, self.y: y_one_hot})
 
-                images = np.append(images, self.sess.run(self.fake_images,
-                                                         feed_dict={self.z: Z_sample, self.y: y_one_hot_init}), axis=0)
-                y_one_hot = np.append(y_one_hot, y_one_hot_init, axis=0)
+            for classLabel in range(0, 10):
+                for _ in range(0, int(n_class[classLabel]), batch_size):
+                    Z_sample = np.random.uniform(-1, 1, size=(batch_size, self.z_dim))
+                    y = np.zeros(batch_size, dtype=np.int64) + classLabel
+                    y_one_hot_init = np.zeros((batch_size, self.y_dim))
+                    y_one_hot_init[np.arange(batch_size), y] = 1
 
-        X_test, Y_test = loadlocal_mnist(images_path=self.base_dir + 'mnist/t10k-images.idx3-ubyte',
-                                         labels_path=self.base_dir + 'mnist/t10k-labels.idx1-ubyte')
+                    images = np.append(images, self.sess.run(self.fake_images,
+                                                             feed_dict={self.z: Z_sample, self.y: y_one_hot_init}),
+                                       axis=0)
+                    y_one_hot = np.append(y_one_hot, y_one_hot_init, axis=0)
 
-        Y_test = [int(y) for y in Y_test]
+            X_test, Y_test = loadlocal_mnist(images_path=self.base_dir + '/data/mnist/t10k-images.idx3-ubyte',
+                                             labels_path=self.base_dir + '/data/mnist/t10k-labels.idx1-ubyte')
 
-        classes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-        Y_test = label_binarize(Y_test, classes=classes)
+            Y_test = [int(y) for y in Y_test]
 
-        print("Classifying - Logistic Regression  ... ")
+            classes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+            Y_test = label_binarize(Y_test, classes=classes)
+
+        if (self.dataset_name == "cifar10"):
+            n_class = np.zeros(10)
+            for t in range(1, 10):
+                n_class[t] = 1000
+            print(len(n_class))
+            Z_sample = np.random.uniform(-1, 1, size=(batch_size, self.z_dim))
+            y = np.zeros(batch_size, dtype=np.int64) + 0
+            y_one_hot = np.zeros((batch_size, self.y_dim))
+            y_one_hot[np.arange(batch_size), y] = 1
+            images = self.sess.run(self.fake_images, feed_dict={self.z: Z_sample, self.y: y_one_hot})
+
+            for classLabel in range(0, 10):
+                for _ in range(0, int(n_class[classLabel]), batch_size):
+                    Z_sample = np.random.uniform(-1, 1, size=(batch_size, self.z_dim))
+                    y = np.zeros(batch_size, dtype=np.int64) + classLabel
+                    y_one_hot_init = np.zeros((batch_size, self.y_dim))
+                    y_one_hot_init[np.arange(batch_size), y] = 1
+
+                    images = np.append(images, self.sess.run(self.fake_images,
+                                                             feed_dict={self.z: Z_sample, self.y: y_one_hot_init}),
+                                       axis=0)
+                    y_one_hot = np.append(y_one_hot, y_one_hot_init, axis=0)
+
+            X_test, Y_test = load_cifar10_test()
+
+            # Y_test = [int(y) for y in Y_test]
+
+            classes = range(0, 10)
+            Y_test = label_binarize(Y_test, classes=classes)
+
+        print("  Classifying - Logistic Regression...")
+
+        print(np.shape(images))
+        print(np.shape(y_one_hot))
 
         TwoDim_images = images.reshape(np.shape(images)[0], -2)
+        print(TwoDim_images.shape)
+        X_test = X_test.reshape(np.shape(X_test)[0], -2)
         Y_score = classify(TwoDim_images, y_one_hot, X_test, "lr", random_state_value=30)
 
+        # -------------------------------------------------
+        print("  Classifying - Logistic Regression...")
+        Y_score = classify(TwoDim_images, y_one_hot, X_test, "lr", random_state_value=30)
+
+        print("  Computing ROC - Logistic Regression ...")
         false_positive_rate, true_positive_rate, roc_auc = compute_fpr_tpr_roc(Y_test, Y_score)
-        print("AuROC: " + str(roc_auc["micro"]))
 
-        classification_results_fname = self.base_dir + "/Results/OUR_DP_CGAN_AuROC.txt"
+        classification_results_fname = self.base_dir + "CGAN_AuROC.txt"
         classification_results = open(classification_results_fname, "w")
-        classification_results.write("\nepsilon : {:d}, sigma: {:.2f}, clipping value: {:.2f}".format(
-                                                                                                max(self.epsilon),
-                                                                                                round(self.sigma, 2),
-                                                                                                round(self.clipping, 2)))
-        classification_results.write("\nAuROC: " + str(roc_auc["micro"]))
-        classification_results.write("\n----------------------------------------------------------------------------------\n")
 
-    def visualize_results(self, epoch):
+        classification_results.write("\nepsilon : {:.2f}, sigma: {:.2f}, clipping value: {:.2f}".format(
+            (self.epsilon),
+            round(self.noise_multiplier, 2),
+            round(self.l2_norm_clip, 2)))
 
+        classification_results.write("\nAuROC - logistic Regression: " + str(roc_auc["micro"]))
+        classification_results.write("\n--------------------------------------------------------------------\n")
+        # ------------------------------------------------------------
+        print("  Classifying - Random Forest...")
+        Y_score = classify(TwoDim_images, y_one_hot, X_test, "rf", random_state_value=30)
+
+        print("  Computing ROC - Random Forest ...")
+        false_positive_rate, true_positive_rate, roc_auc = compute_fpr_tpr_roc(Y_test, Y_score)
+
+        #        classification_results_fname = self.base_dir + "CGAN_AuROC.txt"
+        #        classification_results = open(classification_results_fname, "w")
+
+        classification_results.write("\nepsilon : {:.2f}, sigma: {:.2f}, clipping value: {:.2f}".format(
+            (self.epsilon),
+            round(self.noise_multiplier, 2),
+            round(self.l2_norm_clip, 2)))
+
+        classification_results.write("\nAuROC - random Forest: " + str(roc_auc["micro"]))
+        classification_results.write("\n--------------------------------------------------------------------\n")
+        # --------------------------------------------------------------
+        # --------------------------------------------------------------
+        print("  Classifying - multilayer Perceptron ...")
+        Y_score = classify(TwoDim_images, y_one_hot, X_test, "mlp", random_state_value=30)
+
+        print("  Computing ROC - Multilayer Perceptron ...")
+        false_positive_rate, true_positive_rate, roc_auc = compute_fpr_tpr_roc(Y_test, Y_score)
+
+        classification_results.write("\nepsilon : {:.2f}, sigma: {:.2f}, clipping value: {:.2f}".format(
+            (self.epsilon),
+            round(self.noise_multiplier, 2),
+            round(self.l2_norm_clip, 2)))
+
+        classification_results.write("\nAuROC - multilayer Perceptron: " + str(roc_auc["micro"]))
+        classification_results.write("\n--------------------------------------------------------------------\n")
+
+        # save model for final step
+        self.save(self.checkpoint_dir, counter)
+
+    def compute_epsilon(self, steps):
+        """Computes epsilon value for given hyperparameters."""
+        if self.noise_multiplier == 0.0:
+            return float('inf')
+        orders = [1 + x / 10. for x in range(1, 100)] + list(range(12, 64))
+        sampling_probability = self.batch_size / 60000
+        rdp = compute_rdp(q=sampling_probability,
+                          noise_multiplier=self.noise_multiplier,
+                          steps=steps,
+                          orders=orders)
+        # Delta is set to 1e-5 because MNIST has 60000 training points.
+        return get_privacy_spent(orders, rdp, target_delta=1e-5)[0]
+
+    # CIFAR 10
+    def visualize_results_CIFAR(self, epoch):
+        tot_num_samples = min(self.sample_num, self.batch_size)  # 64, 100
+        image_frame_dim = int(np.floor(np.sqrt(tot_num_samples)))  # 8
+
+        """ random condition, random noise """
+
+        z_sample = np.random.uniform(-1, 1, size=(self.batch_size, self.z_dim))  # 100, 100
+
+        samples = self.sess.run(self.fake_images, feed_dict={self.z: z_sample})
+
+        save_matplot_img(samples[:image_frame_dim * image_frame_dim, :, :, :], [image_frame_dim, image_frame_dim],
+                         self.result_dir + '/' + self.model_dir + '/' + self.model_name + '_epoch%03d' % epoch + '_test_all_classes.png')
+
+    # MNIST
+    def visualize_results_MNIST(self, epoch):
         tot_num_samples = min(self.sample_num, self.batch_size)
         image_frame_dim = int(np.floor(np.sqrt(tot_num_samples)))
 
@@ -412,7 +607,6 @@ class Our_DP_CGAN(object):
         y_one_hot[np.arange(self.batch_size), y] = 1
 
         z_sample = np.random.uniform(-1, 1, size=(self.batch_size, self.z_dim))
-
         samples = self.sess.run(self.fake_images, feed_dict={self.z: z_sample, self.y: y_one_hot})
 
         save_images(samples[:image_frame_dim * image_frame_dim, :, :, :], [image_frame_dim, image_frame_dim],
@@ -454,7 +648,31 @@ class Our_DP_CGAN(object):
 
     @property
     def model_dir(self):
-
-        return "Train_{}_{}_{}_{}".format(
+        return "{}_{}_{}_{}".format(
             self.model_name, self.dataset_name,
-            self.batch_size, self.delta)
+            self.batch_size, self.z_dim)
+
+    def save(self, checkpoint_dir, step):
+        checkpoint_dir = os.path.join(checkpoint_dir, self.model_dir, self.model_name)
+
+        if not os.path.exists(checkpoint_dir):
+            os.makedirs(checkpoint_dir)
+
+        self.saver.save(self.sess, os.path.join(checkpoint_dir, self.model_name + '.model'), global_step=step)
+
+    def load(self, checkpoint_dir):
+        import re
+        print(" [*] Reading checkpoints...")
+        checkpoint_dir = os.path.join(checkpoint_dir, self.model_dir, self.model_name)
+
+        ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
+        if ckpt and ckpt.model_checkpoint_path:
+            ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
+            self.saver.restore(self.sess, os.path.join(checkpoint_dir, ckpt_name))
+            counter = int(next(re.finditer("(\d+)(?!.*\d)", ckpt_name)).group(0))
+            print(" [*] Success to read {}".format(ckpt_name))
+            return True, counter
+        else:
+            print(" [*] Failed to find a checkpoint")
+            return False, 0
+

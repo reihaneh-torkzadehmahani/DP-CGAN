@@ -1,4 +1,6 @@
 #-*- coding: utf-8 -*-
+# reference : https://github.com/hwalsuklee/tensorflow-generative-model-collections/blob/master/CGAN.py
+
 from __future__ import division
 import os
 import time

@@ -1,3 +1,5 @@
+# Reference for CGAN code :https://github.com/hwalsuklee/tensorflow-generative-model-collections/blob/master/CGAN.py
+
 import tensorflow as tf
 import os
 import numpy as np

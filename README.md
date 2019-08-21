@@ -1,6 +1,5 @@
 # DP-CGAN
-Differentially Private Conditional GAN
-http://openaccess.thecvf.com/content_CVPRW_2019/papers/CV-COPS/Torkzadehmahani_DP-CGAN_Differentially_Private_Synthetic_Data_and_Label_Generation_CVPRW_2019_paper.pdf
+[Differentially Private Conditional GAN] (http://openaccess.thecvf.com/content_CVPRW_2019/papers/CV-COPS/Torkzadehmahani_DP-CGAN_Differentially_Private_Synthetic_Data_and_Label_Generation_CVPRW_2019_paper.pdf)
 
 # Reference
 If you use this code, please cite the following paper:

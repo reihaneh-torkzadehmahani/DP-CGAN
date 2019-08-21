@@ -3,6 +3,7 @@ Differentially Private Conditional GAN
 
 # Cite
 If you use this code, please cite the following paper:
+
 @inproceedings{torkzadehmahani2019dp,
   title={DP-CGAN: Differentially Private Synthetic Data and Label Generation},
   author={Torkzadehmahani, Reihaneh and Kairouz, Peter and Paten, Benedict},

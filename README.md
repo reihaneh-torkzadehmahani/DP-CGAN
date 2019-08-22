@@ -4,7 +4,7 @@ There are two different Conditional GANs(CGAN) that we made them differentially 
 # Slides
 Here is the link to my slides for DP-CGAN paper:
 
-[DP-CGAN slides](https://github.com/reihaneh-torkzadehmahani/DP-CGAN/blob/master/CV-COPS2019-Jun16.pdf)
+[DP-CGAN slides](https://github.com/reihaneh-torkzadehmahani/DP-CGAN/blob/master/DP_CGAN/CV-COPS2019-Jun16.pdf)
 
 # Reference
 If you use this code, please cite the following paper:

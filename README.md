@@ -3,7 +3,9 @@ This repository contains the implementation of [Differentially Private Condition
 There are two different Conditional GANs(CGAN) that we made them differentially private: [CGAN](https://github.com/wiseodd/generative-models/blob/master/GAN/) and [Advanced CGAN](https://github.com/hwalsuklee/tensorflow-generative-model-collections/blob/master/CGAN.py). CGAN referes to a Vanilla CGAN architecture in which both generator and discriminator consist of two fully connected layers while in Advanced CGAN the generator and discriminator architectures are exactly the same as in [infoGAN](https://arxiv.org/abs/1606.03657).
 # Slides
 Here is the link to my slides for DP-CGAN paper:
+
 [DP-CGAN slides](https://github.com/reihaneh-torkzadehmahani/DP-CGAN/blob/master/CV-COPS2019-Jun16.pdf)
+
 # Reference
 If you use this code, please cite the following paper:
 ```
